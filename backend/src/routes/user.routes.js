@@ -70,6 +70,25 @@ router.post('/', (req, res) => {
     );
 });
 
+router.get('/:id', (req, res) => {
+
+    const sql = "SELECT * FROM users WHERE user_id = ?";
+
+    db.query(sql, [req.params.id], (err, result) => {
+
+        if (err) {
+            console.error(err);
+
+            return res.status(500).json({
+                success: false,
+                message: 'Server error'
+            });
+        }
+
+        res.json(result[0]);
+    });
+});
+
 router.put('/:id', (req, res) => {
     const { user_fullname, user_name, user_type } = req.body;
 
