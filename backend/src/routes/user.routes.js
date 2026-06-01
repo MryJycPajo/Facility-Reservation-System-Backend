@@ -1,120 +1,87 @@
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2');
+const db = require('../config/db');
 
-const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'LGUbatuan1990',
-    database: 'facility_reservation_db'
+// GET ALL USERS
+router.get('/', async (req, res) => {
+  try {
+    const [results] = await db.query("SELECT * FROM users");
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-router.get('/', (req, res) => {
-    const sql = "SELECT * FROM users";
-
-    db.query(sql, (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({
-                success: false,
-                message: 'Server error'
-            });
-        }
-
-        res.json(results);
-    });
-});
-
-// ADD NEW USER
-router.post('/', (req, res) => {
-
-    const {
-        user_fullname,
-        user_name,
-        password,
-        user_type
-    } = req.body;
-
-    if (!user_fullname || !user_name || !password || !user_type) {
-        return res.status(400).json({
-            success: false,
-            message: 'All fields are required'
-        });
-    }
+// ADD USER
+router.post('/', async (req, res) => {
+  try {
+    const { user_fullname, user_name, password, user_type } = req.body;
 
     const sql = `
-        INSERT INTO users
-        (user_fullname, user_name, password, user_type)
-        VALUES (?, ?, ?, ?)
+      INSERT INTO users (user_fullname, user_name, password, user_type)
+      VALUES (?, ?, ?, ?)
     `;
 
-    db.query(
-        sql,
-        [user_fullname, user_name, password, user_type],
-        (err, result) => {
+    const [result] = await db.query(sql, [
+      user_fullname,
+      user_name,
+      password,
+      user_type
+    ]);
 
-            if (err) {
-                console.error('Add user error:', err);
-
-                return res.status(500).json({
-                    success: false,
-                    message: 'Server error'
-                });
-            }
-
-            res.json({
-                success: true,
-                message: 'User added successfully'
-            });
-        }
-    );
-});
-
-router.get('/:id', (req, res) => {
-
-    const sql = "SELECT * FROM users WHERE user_id = ?";
-
-    db.query(sql, [req.params.id], (err, result) => {
-
-        if (err) {
-            console.error(err);
-
-            return res.status(500).json({
-                success: false,
-                message: 'Server error'
-            });
-        }
-
-        res.json(result[0]);
+    res.json({
+      success: true,
+      id: result.insertId
     });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-router.put('/:id', (req, res) => {
+// GET ONE USER
+router.get('/:id', async (req, res) => {
+  try {
+    const [result] = await db.query(
+      "SELECT * FROM users WHERE user_id = ?",
+      [req.params.id]
+    );
+
+    res.json(result[0]);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// UPDATE USER
+router.put('/:id', async (req, res) => {
+  try {
     const { user_fullname, user_name, user_type } = req.body;
 
-    const sql = `
-        UPDATE users
-        SET user_fullname=?, user_name=?, user_type=?
-        WHERE user_id=?
-    `;
-
-    db.query(sql,
-        [user_fullname, user_name, user_type, req.params.id],
-        (err) => {
-            if (err) return res.status(500).json({ success: false });
-
-            res.json({ success: true, message: 'Updated' });
-        }
+    await db.query(
+      `UPDATE users 
+       SET user_fullname=?, user_name=?, user_type=? 
+       WHERE user_id=?`,
+      [user_fullname, user_name, user_type, req.params.id]
     );
+
+    res.json({ success: true, message: "Updated" });
+
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
-router.delete('/:id', (req, res) => {
-    const sql = "DELETE FROM users WHERE user_id = ?";
 
-    db.query(sql, [req.params.id], (err) => {
-        if (err) return res.status(500).json({ success: false });
-
-        res.json({ success: true, message: 'Deleted' });
-    });
+// DELETE USER
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.query("DELETE FROM users WHERE user_id = ?", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 module.exports = router;

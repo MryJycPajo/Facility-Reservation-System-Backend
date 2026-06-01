@@ -1,91 +1,91 @@
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2');
+const db = require('../config/db');
 
-const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'LGUbatuan1990',
-    database: 'facility_reservation_db'
+// GET ALL FACILITIES
+router.get('/', async (req, res) => {
+  try {
+    const [results] = await db.query("SELECT * FROM facilities");
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-router.get('/', (req, res) => {
-    const sql = "SELECT * FROM facilities";
-
-    db.query(sql, (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({
-                success: false,
-                message: "Server error"
-            });
-        }
-
-        res.json(results);
-    });
-});
-
-router.post('/', (req, res) => {
+// ADD FACILITY
+router.post('/', async (req, res) => {
+  try {
     const { fac_name, fac_cost, fac_status } = req.body;
 
     const sql = `
-        INSERT INTO facilities (fac_name, fac_cost, fac_status)
-        VALUES (?, ?, ?)
+      INSERT INTO facilities (fac_name, fac_cost, fac_status)
+      VALUES (?, ?, ?)
     `;
 
-    db.query(sql, [fac_name, fac_cost, fac_status], (err) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({
-                success: false,
-                message: "Insert failed"
-            });
-        }
+    const [result] = await db.query(sql, [
+      fac_name,
+      fac_cost,
+      fac_status || 'Available'
+    ]);
 
-        res.json({ success: true, message: "Facility added" });
+    res.json({
+      success: true,
+      id: result.insertId
     });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-router.get('/:id', (req, res) => {
-    const sql = "SELECT * FROM facilities WHERE fac_id = ?";
+// GET SINGLE FACILITY
+router.get('/:id', async (req, res) => {
+  try {
+    const [result] = await db.query(
+      "SELECT * FROM facilities WHERE fac_id = ?",
+      [req.params.id]
+    );
 
-    db.query(sql, [req.params.id], (err, result) => {
-        if (err) {
-            return res.status(500).json({ success: false });
-        }
-
-        res.json(result[0]);
-    });
+    res.json(result[0]);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-router.put('/:id', (req, res) => {
+// UPDATE FACILITY
+router.put('/:id', async (req, res) => {
+  try {
     const { fac_name, fac_cost, fac_status } = req.body;
 
-    const sql = `
-        UPDATE facilities
-        SET fac_name=?, fac_cost=?, fac_status=?
-        WHERE fac_id=?
-    `;
+    await db.query(
+      `UPDATE facilities 
+       SET fac_name=?, fac_cost=?, fac_status=? 
+       WHERE fac_id=?`,
+      [fac_name, fac_cost, fac_status, req.params.id]
+    );
 
-    db.query(sql, [fac_name, fac_cost, fac_status, req.params.id], (err) => {
-        if (err) {
-            return res.status(500).json({ success: false });
-        }
+    res.json({ success: true, message: "Updated" });
 
-        res.json({ success: true, message: "Updated" });
-    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-router.delete('/:id', (req, res) => {
-    const sql = "DELETE FROM facilities WHERE fac_id = ?";
+// DELETE FACILITY
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.query(
+      "DELETE FROM facilities WHERE fac_id = ?",
+      [req.params.id]
+    );
 
-    db.query(sql, [req.params.id], (err) => {
-        if (err) {
-            return res.status(500).json({ success: false });
-        }
+    res.json({ success: true, message: "Deleted" });
 
-        res.json({ success: true, message: "Deleted" });
-    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 module.exports = router;
