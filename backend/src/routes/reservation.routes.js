@@ -5,87 +5,229 @@ const db = require('../config/db');
 // GET ALL RESERVATIONS
 router.get('/', async (req, res) => {
   try {
+
     const sql = `
-      SELECT
-        r.reservation_id,
-        r.control_number,
-        u.user_fullname,
-        f.fac_name,
-        r.reservation_date,
-        r.start_time,
-        r.end_time,
-        r.purpose,
-        r.status,
-        r.conflict_check,
-        r.created_at
-      FROM reservations r
-      LEFT JOIN users u ON r.user_id = u.user_id
-      LEFT JOIN facilities f ON r.facility_id = f.fac_id
-      ORDER BY r.created_at DESC
+      SELECT *
+      FROM reservations
+      ORDER BY timestamp DESC
     `;
 
     const [results] = await db.query(sql);
+
     res.json(results);
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: err.message });
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 });
 
-
-// CREATE RESERVATION
-router.post('/', async (req, res) => {
+// GET SINGLE RESERVATION
+router.get('/:id', async (req, res) => {
   try {
-    const {
-      user_id,
-      facility_id,
-      reservation_date,
-      start_time,
-      end_time,
-      purpose
-    } = req.body;
 
-    // basic validation
-    if (!user_id || !facility_id) {
-      return res.status(400).json({
+    const { id } = req.params;
+
+    const [rows] = await db.query(
+      'SELECT * FROM reservations WHERE res_id = ?',
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
         success: false,
-        message: "Missing user_id or facility_id"
+        message: 'Reservation not found'
       });
     }
 
+    res.json(rows[0]);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+// CREATE RESERVATION
+router.post('/', async (req, res) => {
+
+  try {
+
+    const today = new Date();
+
+const year = today.getFullYear();
+const month = String(today.getMonth() + 1).padStart(2, '0');
+const day = String(today.getDate()).padStart(2, '0');
+
+const datePrefix = `${year}${month}${day}`;
+
+    const {
+      res_fullname,
+      contact,
+      res_facility,
+      purpose,
+      date_of_use,
+      start_time,
+      end_time
+    } = req.body;
+
     const sql = `
       INSERT INTO reservations
-      (user_id, facility_id, reservation_date, start_time, end_time, purpose)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (
+        res_fullname,
+        contact,
+        res_facility,
+        purpose,
+        date_of_use,
+        start_time,
+        end_time
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [result] = await db.query(sql, [
-      user_id,
-      facility_id,
-      reservation_date,
+      res_fullname,
+      contact,
+      res_facility,
+      purpose,
+      date_of_use,
       start_time,
-      end_time,
-      purpose
+      end_time
     ]);
 
-    // generate control number
-    const controlNumber = `RES-${new Date().getFullYear()}-${String(result.insertId).padStart(4, '0')}`;
+   const controlNumber = `${datePrefix}-${String(result.insertId).padStart(4, '0')}`;
 
     await db.query(
-      `UPDATE reservations SET control_number=? WHERE reservation_id=?`,
+      `UPDATE reservations
+       SET control_number = ?
+       WHERE res_id = ?`,
       [controlNumber, result.insertId]
     );
 
     res.json({
       success: true,
-      reservation_id: result.insertId,
+      res_id: result.insertId,
       control_number: controlNumber
     });
 
   } catch (err) {
+
     console.error(err);
-    res.status(500).json({ success: false, message: err.message });
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.query(
+      'DELETE FROM reservations WHERE res_id = ?',
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Reservation deleted'
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      res_fullname,
+      contact,
+      res_facility,
+      purpose,
+      date_of_use,
+      start_time,
+      end_time,
+      status
+    } = req.body;
+
+    const sql = `
+      UPDATE reservations
+      SET res_fullname = ?,
+          contact = ?,
+          res_facility = ?,
+          purpose = ?,
+          date_of_use = ?,
+          start_time = ?,
+          end_time = ?,
+          status = ?
+      WHERE res_id = ?
+    `;
+
+    await db.query(sql, [
+      res_fullname,
+      contact,
+      res_facility,
+      purpose,
+      date_of_use,
+      start_time,
+      end_time,
+      status,
+      id
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Reservation updated'
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+router.get('/stats/summary', async (req, res) => {
+  try {
+
+    const [rows] = await db.query(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(status = 'Pending') AS pending,
+        SUM(status = 'Approved') AS approved,
+        SUM(status = 'Rejected') AS rejected
+      FROM reservations
+    `);
+
+    res.json(rows[0]);
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 });
 
