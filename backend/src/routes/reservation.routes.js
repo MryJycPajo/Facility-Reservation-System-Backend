@@ -26,6 +26,29 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/stats/summary', async (req, res) => {
+  try {
+
+    const [rows] = await db.query(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(status = 'Pending') AS pending,
+        SUM(status = 'Approved for Payment') AS approvedforpayment,
+        SUM(status = 'Confirmed') AS confirmed
+      FROM reservations
+    `);
+
+    res.json(rows[0]);
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+
 // GET SINGLE RESERVATION
 router.get('/:id', async (req, res) => {
   try {
@@ -59,16 +82,10 @@ router.get('/:id', async (req, res) => {
 
 // CREATE RESERVATION
 router.post('/', async (req, res) => {
-
   try {
 
     const today = new Date();
-
-const year = today.getFullYear();
-const month = String(today.getMonth() + 1).padStart(2, '0');
-const day = String(today.getDate()).padStart(2, '0');
-
-const datePrefix = `${year}${month}${day}`;
+    const datePrefix = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
 
     const {
       res_fullname,
@@ -80,17 +97,41 @@ const datePrefix = `${year}${month}${day}`;
       end_time
     } = req.body;
 
+    // 🔴 CONFLICT CHECK
+    const conflictQuery = `
+      SELECT *
+      FROM reservations
+      WHERE res_facility = ?
+      AND date_of_use = ?
+      AND status != 'cancelled'
+      AND NOT (end_time <= ? OR start_time >= ?)
+    `;
+
+    const [conflicts] = await db.query(conflictQuery, [
+      res_facility,
+      date_of_use,
+      end_time,
+      start_time
+    ]);
+
+    console.log("Facility:", res_facility);
+console.log("Date:", date_of_use);
+console.log("Start:", start_time);
+console.log("End:", end_time);
+console.log("Conflicts Found:", conflicts);
+
+   if (conflicts.length > 0) {
+  return res.status(409).json({
+    success: false,
+    conflict: true,
+    message: "Time slot already taken"
+  });
+}
+
+    // 🟢 INSERT
     const sql = `
       INSERT INTO reservations
-      (
-        res_fullname,
-        contact,
-        res_facility,
-        purpose,
-        date_of_use,
-        start_time,
-        end_time
-      )
+      (res_fullname, contact, res_facility, purpose, date_of_use, start_time, end_time)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
 
@@ -104,32 +145,29 @@ const datePrefix = `${year}${month}${day}`;
       end_time
     ]);
 
-   const controlNumber = `${datePrefix}-${String(result.insertId).padStart(4, '0')}`;
+    // 🟢 CONTROL NUMBER
+    const controlNumber = `${datePrefix}-${String(result.insertId).padStart(4, '0')}`;
 
     await db.query(
-      `UPDATE reservations
-       SET control_number = ?
-       WHERE res_id = ?`,
+      `UPDATE reservations SET control_number = ? WHERE res_id = ?`,
       [controlNumber, result.insertId]
     );
-
-    res.json({
-      success: true,
-      res_id: result.insertId,
-      control_number: controlNumber
-    });
-
+return res.json({
+  success: true,
+  conflict: false,
+  res_id: result.insertId,
+  control_number: controlNumber
+});
+    
   } catch (err) {
-
     console.error(err);
-
     res.status(500).json({
       success: false,
       message: err.message
     });
   }
 });
-
+    
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -169,6 +207,8 @@ router.put('/:id', async (req, res) => {
       status
     } = req.body;
 
+    const safeStatus = status || 'pending';
+
     const sql = `
       UPDATE reservations
       SET res_fullname = ?,
@@ -190,7 +230,7 @@ router.put('/:id', async (req, res) => {
       date_of_use,
       start_time,
       end_time,
-      status,
+      safeStatus,
       id
     ]);
 
@@ -209,26 +249,5 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.get('/stats/summary', async (req, res) => {
-  try {
-
-    const [rows] = await db.query(`
-      SELECT
-        COUNT(*) AS total,
-        SUM(status = 'Pending') AS pending,
-        SUM(status = 'Approved') AS approved,
-        SUM(status = 'Rejected') AS rejected
-      FROM reservations
-    `);
-
-    res.json(rows[0]);
-
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-});
 
 module.exports = router;
