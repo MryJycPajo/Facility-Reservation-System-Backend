@@ -2,23 +2,53 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 
+
+// ===============================
+// 🔧 DATE NORMALIZER (IMPORTANT FIX)
+// ===============================
+function normalizeDate(dateStr) {
+  if (!dateStr) return null;
+
+  // already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
+  const d = new Date(dateStr);
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+
+// ===============================
 // GET ALL RESERVATIONS
+// ===============================
 router.get('/', async (req, res) => {
   try {
-
-    const sql = `
-      SELECT *
-      FROM reservations
-      ORDER BY timestamp DESC
-    `;
-
-    const [results] = await db.query(sql);
+    const [results] = await db.query(`
+  SELECT
+    res_id,
+    timestamp,
+    res_fullname,
+    contact,
+    res_facility,
+    purpose,
+    DATE_FORMAT(date_of_use, '%Y-%m-%d') AS date_of_use,
+    start_time,
+    end_time,
+    status,
+    control_number
+  FROM reservations
+  ORDER BY timestamp DESC
+`);
 
     res.json(results);
 
   } catch (err) {
-    console.error(err);
-
     res.status(500).json({
       success: false,
       message: err.message
@@ -26,9 +56,26 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/dashboard/pending-count', async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT COUNT(*) AS count
+      FROM reservations
+      WHERE LOWER(TRIM(status)) = 'pending'
+    `);
+
+    res.json({
+      count: rows[0].count
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ count: 0 });
+  }
+});
+
 router.get('/stats/summary', async (req, res) => {
   try {
-
     const [rows] = await db.query(`
       SELECT
         COUNT(*) AS total,
@@ -48,19 +95,33 @@ router.get('/stats/summary', async (req, res) => {
   }
 });
 
+router.get('/recent-confirmed', async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT *
+      FROM reservations
+      WHERE LOWER(status) = 'confirmed'
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `);
 
-// GET SINGLE RESERVATION
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
-
-    const { id } = req.params;
-
     const [rows] = await db.query(
       'SELECT * FROM reservations WHERE res_id = ?',
-      [id]
+      [req.params.id]
     );
 
-    if (rows.length === 0) {
+    if (!rows.length) {
       return res.status(404).json({
         success: false,
         message: 'Reservation not found'
@@ -70,9 +131,6 @@ router.get('/:id', async (req, res) => {
     res.json(rows[0]);
 
   } catch (err) {
-
-    console.error(err);
-
     res.status(500).json({
       success: false,
       message: err.message
@@ -80,12 +138,14 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// CREATE RESERVATION
 router.post('/', async (req, res) => {
   try {
 
     const today = new Date();
-    const datePrefix = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+    const datePrefix =
+      today.getFullYear() +
+      String(today.getMonth() + 1).padStart(2, '0') +
+      String(today.getDate()).padStart(2, '0');
 
     const {
       res_fullname,
@@ -97,94 +157,62 @@ router.post('/', async (req, res) => {
       end_time
     } = req.body;
 
-    // 🔴 CONFLICT CHECK
-    const conflictQuery = `
+    const safeDate = normalizeDate(date_of_use);
+
+    // CONFLICT CHECK
+    const [conflicts] = await db.query(`
       SELECT *
       FROM reservations
       WHERE res_facility = ?
       AND date_of_use = ?
       AND status != 'cancelled'
       AND NOT (end_time <= ? OR start_time >= ?)
-    `;
-
-    const [conflicts] = await db.query(conflictQuery, [
+    `, [
       res_facility,
-      date_of_use,
+      safeDate,
       end_time,
       start_time
     ]);
 
-    console.log("Facility:", res_facility);
-console.log("Date:", date_of_use);
-console.log("Start:", start_time);
-console.log("End:", end_time);
-console.log("Conflicts Found:", conflicts);
+    if (conflicts.length > 0) {
+      return res.status(409).json({
+        success: false,
+        conflict: true,
+        message: "Time slot already taken"
+      });
+    }
 
-   if (conflicts.length > 0) {
-  return res.status(409).json({
-    success: false,
-    conflict: true,
-    message: "Time slot already taken"
-  });
-}
-
-    // 🟢 INSERT
-    const sql = `
+    // INSERT
+    const [result] = await db.query(`
       INSERT INTO reservations
       (res_fullname, contact, res_facility, purpose, date_of_use, start_time, end_time)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    const [result] = await db.query(sql, [
+    `, [
       res_fullname,
       contact,
       res_facility,
       purpose,
-      date_of_use,
+      safeDate,
       start_time,
       end_time
     ]);
 
-    // 🟢 CONTROL NUMBER
-    const controlNumber = `${datePrefix}-${String(result.insertId).padStart(4, '0')}`;
+    // CONTROL NUMBER
+    const controlNumber =
+      `${datePrefix}-${String(result.insertId).padStart(4, '0')}`;
 
     await db.query(
       `UPDATE reservations SET control_number = ? WHERE res_id = ?`,
       [controlNumber, result.insertId]
     );
-return res.json({
-  success: true,
-  conflict: false,
-  res_id: result.insertId,
-  control_number: controlNumber
-});
-    
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-});
-    
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await db.query(
-      'DELETE FROM reservations WHERE res_id = ?',
-      [id]
-    );
 
     res.json({
       success: true,
-      message: 'Reservation deleted'
+      res_id: result.insertId,
+      control_number: controlNumber
     });
 
   } catch (err) {
-    console.error(err);
-
     res.status(500).json({
       success: false,
       message: err.message
@@ -192,9 +220,12 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+
+// ===============================
+// UPDATE RESERVATION (FIXED)
+// ===============================
 router.put('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
 
     const {
       res_fullname,
@@ -207,9 +238,9 @@ router.put('/:id', async (req, res) => {
       status
     } = req.body;
 
-    const safeStatus = status || 'pending';
+    const safeDate = normalizeDate(date_of_use);
 
-    const sql = `
+    await db.query(`
       UPDATE reservations
       SET res_fullname = ?,
           contact = ?,
@@ -220,18 +251,16 @@ router.put('/:id', async (req, res) => {
           end_time = ?,
           status = ?
       WHERE res_id = ?
-    `;
-
-    await db.query(sql, [
+    `, [
       res_fullname,
       contact,
       res_facility,
       purpose,
-      date_of_use,
+      safeDate,
       start_time,
       end_time,
-      safeStatus,
-      id
+      status || 'pending',
+      req.params.id
     ]);
 
     res.json({
@@ -240,8 +269,6 @@ router.put('/:id', async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
-
     res.status(500).json({
       success: false,
       message: err.message
@@ -249,5 +276,29 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+
+// ===============================
+// DELETE
+// ===============================
+router.delete('/:id', async (req, res) => {
+  try {
+
+    await db.query(
+      'DELETE FROM reservations WHERE res_id = ?',
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Reservation deleted'
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
 
 module.exports = router;
