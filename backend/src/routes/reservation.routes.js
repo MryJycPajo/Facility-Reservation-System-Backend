@@ -42,8 +42,10 @@ router.get('/', async (req, res) => {
     end_time,
     status,
     control_number
-  FROM reservations
-  ORDER BY timestamp DESC
+FROM reservations
+WHERE status IS NULL
+   OR LOWER(status) <> 'expired'
+ORDER BY timestamp DESC
 `);
 
     res.json(results);
@@ -184,9 +186,18 @@ router.post('/', async (req, res) => {
 
     // INSERT
     const [result] = await db.query(`
-      INSERT INTO reservations
-      (res_fullname, contact, res_facility, purpose, date_of_use, start_time, end_time)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+     INSERT INTO reservations
+(
+  res_fullname,
+  contact,
+  res_facility,
+  purpose,
+  date_of_use,
+  start_time,
+  end_time,
+  status
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
     `, [
       res_fullname,
       contact,

@@ -1,22 +1,57 @@
 const express = require('express');
 const router = express.Router();
+const db = require('../config/db');
 
-// TEMP demo (later ilisan ug controller + DB)
-router.post('/login', (req, res) => {
-    const { username, password } = req.body;
+router.post('/login', async (req, res) => {
+  try {
 
-    if (username === 'admin' && password === 'admin') {
-        return res.json({
-            message: 'Login successful',
-            token: 'dummy-token-123'
-        });
+    console.log("LOGIN ROUTE HIT");
+    console.log("REQUEST BODY:", req.body);
+    
+    const { user_name, password } = req.body;
+
+    const user_name_clean = user_name.trim();
+    const password_clean = password.trim();
+
+    const [rows] = await db.query(
+      'SELECT * FROM users WHERE TRIM(user_name) = ?',
+      [user_name_clean]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
-    return res.status(401).json({ message: 'Invalid credentials' });
-});
+    const user = rows[0];
 
-router.post('/register', (req, res) => {
-    res.json({ message: 'User registered (dummy)' });
+    if (user.password.trim() !== password_clean) {
+      return res.status(401).json({
+        success: false,
+        message: 'Incorrect password'
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: user.user_id,
+        name: user.user_fullname,
+        user_name: user.user_name,
+        user_type: user.user_type
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
 });
 
 module.exports = router;
