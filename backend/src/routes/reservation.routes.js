@@ -116,6 +116,51 @@ router.get('/recent-confirmed', async (req, res) => {
   }
 });
 
+router.get('/history/completed', async (req, res) => {
+  try {
+
+    const [rows] = await db.query(`
+      SELECT
+        r.res_id,
+        r.control_number,
+        r.res_fullname,
+        r.res_facility,
+        DATE_FORMAT(r.date_of_use, '%Y-%m-%d') AS date_of_use,
+        r.status,
+
+        p.amount_paid,
+        p.collector_name
+
+      FROM reservations r
+
+      LEFT JOIN payments p
+        ON p.reservation_id = r.res_id
+
+      WHERE LOWER(r.status) = 'confirmed'
+
+      AND (
+        r.date_of_use < CURDATE()
+        OR (
+          r.date_of_use = CURDATE()
+          AND r.end_time < CURTIME()
+        )
+      )
+
+      ORDER BY r.date_of_use DESC
+    `);
+
+    res.json(rows);
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await db.query(

@@ -56,39 +56,36 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
 
-    console.log('BODY RECEIVED:', req.body);
-
     const {
       addon_name,
       description,
       addon_rate,
-      unit_type,
       status
     } = req.body;
 
-    if (!addon_name || addon_rate === undefined || !unit_type) {
-      return res.status(400).json({
-        message: 'Missing required fields'
-      });
-    }
+   if (!addon_name || addon_rate === undefined) {
+  return res.status(400).json({
+    message: 'Missing required fields'
+  });
+}
 
-    const [result] = await db.query(`
-      INSERT INTO facility_addons
-      (
-        addon_name,
-        description,
-        addon_rate,
-        unit_type,
-        status
-      )
-      VALUES (?, ?, ?, ?, ?)
-    `, [
-      addon_name,
-      description || '',
-      addon_rate,
-      unit_type,
-      status || 'active'
-    ]);
+   const [result] = await db.query(`
+  INSERT INTO facility_addons
+  (
+    addon_name,
+    description,
+    addon_rate,
+    unit_type,
+    status
+  )
+  VALUES (?, ?, ?, ?, ?)
+`, [
+  addon_name,
+  description || '',
+  addon_rate,
+  'piece',
+  status || 'active'
+]);
 
     res.json({
       success: true,
