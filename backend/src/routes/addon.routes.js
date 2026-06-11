@@ -7,11 +7,11 @@ const db = require('../config/db');
 // ===============================
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await db.query(`
-      SELECT *
-      FROM facility_addons
-      WHERE LOWER(status) = 'active'
-    `);
+   const [rows] = await db.query(`
+  SELECT addon_id, addon_name, description, addon_rate, status, created_at
+  FROM facility_addons
+  WHERE LOWER(status) = 'active'
+`);
 
     res.json(rows);
   } catch (err) {
@@ -75,7 +75,6 @@ router.post('/', async (req, res) => {
     addon_name,
     description,
     addon_rate,
-    unit_type,
     status
   )
   VALUES (?, ?, ?, ?, ?)
@@ -114,7 +113,6 @@ router.put('/:id', async (req, res) => {
       addon_name,
       description,
       addon_rate,
-      unit_type,
       status
     } = req.body;
 
@@ -124,14 +122,12 @@ router.put('/:id', async (req, res) => {
         addon_name = ?,
         description = ?,
         addon_rate = ?,
-        unit_type = ?,
         status = ?
       WHERE addon_id = ?
     `, [
       addon_name,
       description || '',
       addon_rate,
-      unit_type,
       status,
       id
     ]);
