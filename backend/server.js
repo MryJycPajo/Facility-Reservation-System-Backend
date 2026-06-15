@@ -43,22 +43,22 @@ app.get('/', (req, res) => {
 // ===============================
 const db = require('./src/config/db');
 
-// AUTO EXPIRE
 setInterval(async () => {
   try {
+
     const [result] = await db.query(`
       UPDATE reservations
-      SET status = 'expired'
+      SET status = 'completed'
       WHERE TIMESTAMP(date_of_use, end_time) <= NOW()
-      AND LOWER(status) NOT IN ('cancelled', 'expired')
+      AND LOWER(status) = 'confirmed'
     `);
 
     console.log(
-      `Auto-expire executed. ${result.affectedRows} reservation(s) expired.`
+      `Auto-complete executed. ${result.affectedRows} reservation(s) completed.`
     );
 
   } catch (err) {
-    console.error('Auto-expire error:', err.message);
+    console.error(err);
   }
 }, 60000);
 

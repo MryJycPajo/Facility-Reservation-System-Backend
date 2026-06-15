@@ -30,23 +30,26 @@ function normalizeDate(dateStr) {
 router.get('/', async (req, res) => {
   try {
     const [results] = await db.query(`
-  SELECT
-    res_id,
-    timestamp,
-    res_fullname,
-    contact,
-    res_facility,
-    purpose,
-    DATE_FORMAT(date_of_use, '%Y-%m-%d') AS date_of_use,
-    start_time,
-    end_time,
-    status,
-    control_number
-FROM reservations
-WHERE status IS NULL
-   OR LOWER(status) <> 'expired'
-ORDER BY timestamp DESC
-`);
+      SELECT
+        res_id,
+        timestamp,
+        res_fullname,
+        contact,
+        res_facility,
+        purpose,
+        DATE_FORMAT(date_of_use, '%Y-%m-%d') AS date_of_use,
+        start_time,
+        end_time,
+        status,
+        control_number
+      FROM reservations
+      WHERE status IN (
+        'pending',
+        'approved for payment',
+        'confirmed'
+      )
+      ORDER BY timestamp DESC
+    `);
 
     res.json(results);
 
