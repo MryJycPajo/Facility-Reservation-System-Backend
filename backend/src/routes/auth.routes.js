@@ -3,7 +3,10 @@ const router = express.Router();
 const db = require('../config/db');
 
 router.post('/login', async (req, res) => {
-  const { user_name, password } = req.body;
+  let { user_name, password } = req.body;
+
+  user_name = user_name?.trim();
+  password = password?.trim();
 
   try {
     const [rows] = await db.query(
@@ -39,5 +42,4 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ✅ IMPORTANT: outside route
 module.exports = router;
