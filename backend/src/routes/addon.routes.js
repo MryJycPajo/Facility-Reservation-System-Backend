@@ -69,7 +69,7 @@ router.post('/', async (req, res) => {
   });
 }
 
-   const [result] = await db.query(`
+const [result] = await db.query(`
   INSERT INTO facility_addons
   (
     addon_name,
@@ -77,12 +77,11 @@ router.post('/', async (req, res) => {
     addon_rate,
     status
   )
-  VALUES (?, ?, ?, ?, ?)
+  VALUES (?, ?, ?, ?)
 `, [
   addon_name,
   description || '',
   addon_rate,
-  'piece',
   status || 'active'
 ]);
 

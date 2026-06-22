@@ -22,6 +22,7 @@ const reservationRoutes = require('./src/routes/reservation.routes');
 const addonRoutes = require('./src/routes/addon.routes');
 const paymentRoutes = require('./src/routes/payment.routes');
 const historyRoutes = require('./src/routes/history.routes');
+const dashboardRoutes = require('./src/routes/dashboard.routes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -30,6 +31,7 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api/addons', addonRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/history', historyRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ===============================
 // TEST ROUTE
