@@ -10,29 +10,35 @@ const {
   reservation_id,
   official_receipt_number,
   amount_paid,
+  facility_fee,
   payment_date,
   collector_name,
   selected_addons
 } = req.body;
 
+const addonsToSave = JSON.stringify(selected_addons);
+
     const [result] = await db.query(`
+
 INSERT INTO payments
 (
   res_id,
   or_number,
   amount_paid,
+  facility_fee,
   payment_date,
   collector_name,
   selected_addons
 )
-VALUES (?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?)
     `,[
   reservation_id,
   official_receipt_number,
   amount_paid,
+  facility_fee,
   payment_date,
   collector_name,
-  selected_addons
+  addonsToSave
 ]);
 
     res.json({
@@ -59,10 +65,11 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
 
     const [rows] = await db.query(`
- SELECT
+SELECT
     p.payment_id,
     p.or_number,
     p.amount_paid,
+    p.facility_fee,
     p.payment_date,
     p.collector_name,
     p.selected_addons,

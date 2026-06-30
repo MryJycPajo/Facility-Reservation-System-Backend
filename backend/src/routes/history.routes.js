@@ -23,6 +23,8 @@ WHERE LOWER(r.status) = 'completed'
 ORDER BY p.created_at DESC
 `);
 
+console.log("HISTORY ROWS:", rows);
+
     res.json(rows);
 
   } catch (err) {
