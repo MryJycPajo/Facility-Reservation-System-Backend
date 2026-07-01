@@ -2,9 +2,9 @@
   "name": "facility-reservation-backend",
   "version": "1.0.0",
   "description": "Facility Reservation System API",
-  "main": "src/server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "dependencies": {
