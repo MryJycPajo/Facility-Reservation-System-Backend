@@ -197,15 +197,16 @@ router.post('/', async (req, res) => {
       String(today.getMonth() + 1).padStart(2, '0') +
       String(today.getDate()).padStart(2, '0');
 
-    const {
-      res_fullname,
-      contact,
-      res_facility,
-      purpose,
-      date_of_use,
-      start_time,
-      end_time
-    } = req.body;
+const {
+  res_fullname,
+  contact,
+  res_facility,
+  purpose,
+  date_of_use,
+  start_time,
+  end_time,
+  status
+} = req.body;
 
     const safeDate = normalizeDate(date_of_use);
 
@@ -245,16 +246,17 @@ router.post('/', async (req, res) => {
   end_time,
   status
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-    `, [
-      res_fullname,
-      contact,
-      res_facility,
-      purpose,
-      safeDate,
-      start_time,
-      end_time
-    ]);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,[
+  res_fullname,
+  contact,
+  res_facility,
+  purpose,
+  safeDate,
+  start_time,
+  end_time,
+  status || 'pending'
+]);
 
     // CONTROL NUMBER
     const controlNumber =
